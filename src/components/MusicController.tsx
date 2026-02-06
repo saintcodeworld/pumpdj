@@ -153,7 +153,7 @@ export const MusicController = () => {
                                 <div className={`relative w-full aspect-video ${showVideo ? 'block' : 'hidden'}`}>
                                     <RP
                                         ref={playerRef}
-                                        url={currentTrack.url}
+                                        src={currentTrack.url}
                                         playing={playing}
                                         volume={volume}
                                         controls={true}
