@@ -95,7 +95,6 @@ export const Dashboard = ({ children }: { children: React.ReactNode }) => {
                         <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                         LIVE
                     </div>
-                    <div>SOL/USD: $145.20</div>
                 </div>
             </header>
 
@@ -119,22 +118,19 @@ export const Dashboard = ({ children }: { children: React.ReactNode }) => {
                                     {tokenLoading ? "..." : tokenData ? tokenData.supply.toLocaleString() : "1,000,000,000"}
                                 </span>
                             </div>
-                            <div className="flex justify-between">
-                                <span>HOLDERS:</span>
-                                <span className="text-white">
-                                    {tokenLoading ? "..." : tokenData?.holders ? tokenData.holders.toLocaleString() : "TBD"}
-                                </span>
-                            </div>
                         </div>
 
-                        <motion.button
+                        <motion.a
+                            href="https://pump.fun/coin/KEJ9WeF6Gf77LaGLK9zif28YUru8Fu1GyHwSnejpump"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                             animate={{ boxShadow: `0 0 ${10 + volume * 20}px #00ff00` }}
                             className="w-full mt-6 bg-[#00ff00] text-black font-bold py-3 rounded uppercase tracking-wide flex items-center justify-center gap-2"
                         >
-                            <Zap size={18} fill="black" /> Buy $PUMP
-                        </motion.button>
+                            <Zap size={18} fill="black" /> Buy $VIBE
+                        </motion.a>
                     </div>
 
                     <div className="flex-1 min-h-[300px] overflow-hidden">

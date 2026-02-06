@@ -1,23 +1,22 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { MessageSquare, Send } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 interface Message {
     id: string;
-    user: string;
+    username: string;
     text: string;
-    timestamp: number;
+    created_at: string;
 }
 
 export const Chat = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputText] = useState("");
-    // Assign a persistent random username for the session
     const [username, setUsername] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        // Client-side only username generation to avoid hydration mismatch
         const stored = localStorage.getItem("chat_username");
         if (stored) {
             setUsername(stored);
@@ -28,27 +27,36 @@ export const Chat = () => {
         }
     }, []);
 
-    useEffect(() => {
-        // Poll for messages
-        const fetchMessages = async () => {
-            try {
-                const res = await fetch("/api/chat");
-                if (res.ok) {
-                    const data = await res.json();
-                    setMessages(data);
-                }
-            } catch (error) {
-                console.error("Failed to fetch chat", error);
-            }
-        };
+    const fetchMessages = useCallback(async () => {
+        const { data } = await supabase
+            .from("chat_messages")
+            .select("*")
+            .order("created_at", { ascending: true })
+            .limit(50);
 
-        fetchMessages();
-        const interval = setInterval(fetchMessages, 1000); // Poll every second for better responsiveness
-        return () => clearInterval(interval);
+        if (data) setMessages(data);
     }, []);
 
     useEffect(() => {
-        // Auto-scroll to bottom
+        fetchMessages();
+
+        const channel = supabase
+            .channel("chat_messages")
+            .on(
+                "postgres_changes",
+                { event: "INSERT", schema: "public", table: "chat_messages" },
+                (payload) => {
+                    setMessages((prev) => [...prev, payload.new as Message]);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [fetchMessages]);
+
+    useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
@@ -58,29 +66,12 @@ export const Chat = () => {
         e.preventDefault();
         if (!inputText.trim() || !username) return;
 
-        const tempMsg = {
-            id: "temp-" + Date.now(),
-            user: username,
-            text: inputText,
-            timestamp: Date.now()
-        };
-
-        // Optimistic update
-        setMessages(prev => [...prev, tempMsg]);
         const textToSend = inputText;
         setInputText("");
 
-        try {
-            await fetch("/api/chat", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ user: username, text: textToSend }),
-            });
-            // The poll will sync the real ID later
-        } catch (error) {
-            console.error("Failed to send message", error);
-            // Revert if needed, but for simple chat we can ignore
-        }
+        await supabase
+            .from("chat_messages")
+            .insert({ username, text: textToSend });
     };
 
     return (
@@ -96,10 +87,10 @@ export const Chat = () => {
                         <div key={msg.id} className="flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300">
                             <div className="flex gap-2 items-baseline">
                                 <span className="text-[#00ff00] font-bold whitespace-nowrap shadow-[#00ff00] drop-shadow-[0_0_2px_rgba(0,255,0,0.5)]">
-                                    @{msg.user}
+                                    @{msg.username}
                                 </span>
                                 <span className="text-[10px] text-gray-600">
-                                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                             </div>
                             <span className="text-gray-300 pl-1 break-words leading-relaxed">{msg.text}</span>
