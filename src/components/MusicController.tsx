@@ -153,34 +153,24 @@ export const MusicController = () => {
                                 <div className={`relative w-full aspect-video ${showVideo ? 'block' : 'hidden'}`}>
                                     <RP
                                         ref={playerRef}
-                                        src={currentTrack.url}
+                                        url={currentTrack.url}
                                         playing={playing}
                                         volume={volume}
                                         controls={true}
                                         width="100%"
                                         height="100%"
                                         onReady={(player: any) => {
-                                            console.log("[DJ] >>> onReady callback triggered");
                                             handlePlayerReady(player);
                                         }}
-                                        onStart={() => console.log("[DJ] >>> onStart - playback started")}
                                         onPlay={() => {
-                                            console.log("[DJ] >>> onPlay");
                                             setPlaying(true);
                                         }}
                                         onPause={() => {
-                                            console.log("[DJ] >>> onPause");
                                             setPlaying(false);
                                         }}
-                                        onError={(e: any, data: any) => {
-                                            console.error("[DJ] >>> onError:", e, data);
+                                        onError={(e: any) => {
                                             handlePlayerError(e);
                                         }}
-                                        config={{
-                                            youtube: {
-                                                playerVars: { autoplay: 1, controls: 0, modestbranding: 1 }
-                                            }
-                                        } as any}
                                     />
                                 </div>
 
