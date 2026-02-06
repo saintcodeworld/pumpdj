@@ -8,19 +8,85 @@ import { useTokenData } from "@/hooks/useTokenData";
 import { StartOverlay } from "./StartOverlay";
 
 import { Chat } from "./Chat";
+import { TrackList } from "./TrackList";
+
+const BackgroundVisualizer = () => {
+    const { bass, mid, treble, volume } = useAudioAnalyzer();
+
+    return (
+        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(0,255,0,0.1)_2px,transparent_2px),linear-gradient(90deg,rgba(0,255,0,0.1)_2px,transparent_2px)] bg-[size:50px_50px] opacity-10" />
+
+            <motion.div
+                className="absolute inset-0 bg-[radial-gradient(circle_at_center,#00ff0015,transparent_70%)]"
+                animate={{ opacity: 0.3 + volume * 0.7, scale: 1 + bass * 0.05 }}
+                transition={{ type: "tween", duration: 0.1 }}
+            />
+
+            <div className="absolute bottom-0 left-0 right-0 flex justify-center items-end gap-[2px] h-[40%] px-4 opacity-[0.08]">
+                {Array.from({ length: 48 }).map((_, i) => {
+                    const position = i / 48;
+                    let intensity;
+                    if (position < 0.3) intensity = bass;
+                    else if (position < 0.6) intensity = mid;
+                    else intensity = treble;
+
+                    return (
+                        <motion.div
+                            key={i}
+                            className="flex-1 bg-gradient-to-t from-[#00ff00] to-[#00ff0000] rounded-t-sm"
+                            animate={{
+                                height: `${Math.max(5, intensity * 100 + Math.random() * 20)}%`,
+                            }}
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        />
+                    );
+                })}
+            </div>
+
+            <motion.div
+                className="absolute top-0 left-0 right-0 flex justify-center items-start gap-[2px] h-[30%] px-4 opacity-[0.05] rotate-180"
+                animate={{ opacity: volume > 0.1 ? 0.05 : 0 }}
+            >
+                {Array.from({ length: 32 }).map((_, i) => {
+                    const position = i / 32;
+                    let intensity;
+                    if (position < 0.3) intensity = bass;
+                    else if (position < 0.6) intensity = mid;
+                    else intensity = treble;
+
+                    return (
+                        <motion.div
+                            key={i}
+                            className="flex-1 bg-gradient-to-t from-[#00ff00] to-[#00ff0000] rounded-t-sm"
+                            animate={{
+                                height: `${Math.max(3, intensity * 80 + Math.random() * 15)}%`,
+                            }}
+                            transition={{ type: "spring", stiffness: 200, damping: 25 }}
+                        />
+                    );
+                })}
+            </motion.div>
+
+            <motion.div
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-[#00ff00] blur-[200px]"
+                animate={{ opacity: bass * 0.06, scale: 0.8 + bass * 0.4 }}
+                transition={{ type: "tween", duration: 0.15 }}
+            />
+        </div>
+    );
+};
 
 export const Dashboard = ({ children }: { children: React.ReactNode }) => {
     const { volume } = useAudioAnalyzer();
     const { data: tokenData, loading: tokenLoading } = useTokenData();
 
     return (
-        <div className="min-h-screen bg-black text-[#00ff00] font-mono flex flex-col items-center relative overflow-hidden">
+        <div className="h-screen bg-black text-[#00ff00] font-mono flex flex-col items-center relative overflow-hidden">
             <StartOverlay />
-            {/* Background Matrix/Grid Effect */}
-            <div className="absolute inset-0 z-0 opacity-10 pointer-events-none bg-[linear-gradient(rgba(0,255,0,0.1)_2px,transparent_2px),linear-gradient(90deg,rgba(0,255,0,0.1)_2px,transparent_2px)] bg-[size:50px_50px]" />
+            <BackgroundVisualizer />
 
-            {/* Header */}
-            <header className="w-full border-b border-[#00ff00] p-4 flex justify-between items-center bg-[#050505] z-20">
+            <header className="w-full border-b border-[#00ff00] p-4 flex justify-between items-center bg-[#050505]/80 backdrop-blur-sm z-20 shrink-0">
                 <h1 className="text-2xl font-bold tracking-tighter shadow-green-500 drop-shadow-[0_0_5px_#00ff00]">
                     PUMP.DJ <span className="text-xs align-top opacity-70">v1.0</span>
                 </h1>
@@ -33,12 +99,10 @@ export const Dashboard = ({ children }: { children: React.ReactNode }) => {
                 </div>
             </header>
 
-            {/* Main Content Area */}
-            <main className="flex-1 w-full max-w-6xl flex flex-col lg:flex-row gap-6 p-6 z-10 relative">
+            <main className="flex-1 w-full max-w-[1600px] flex flex-col lg:flex-row gap-6 p-4 lg:p-6 z-10 relative overflow-hidden">
 
-                {/* Left Panel: Token Info */}
-                <aside className="lg:w-1/4 hidden lg:flex flex-col gap-4">
-                    <div className="bg-[#111] border border-[#333] p-4 rounded-lg">
+                <aside className="lg:w-80 hidden lg:flex flex-col gap-4 overflow-hidden h-full shrink-0">
+                    <div className="bg-[#111]/80 backdrop-blur-sm border border-[#333] p-4 rounded-lg shrink-0">
                         <h2 className="text-[#00ff00] mb-4 border-b border-[#333] pb-2 flex items-center gap-2">
                             <TrendingUp size={16} /> TOKEN METRICS
                         </h2>
@@ -72,22 +136,22 @@ export const Dashboard = ({ children }: { children: React.ReactNode }) => {
                             <Zap size={18} fill="black" /> Buy $PUMP
                         </motion.button>
                     </div>
+
+                    <div className="flex-1 min-h-[300px] overflow-hidden">
+                        <TrackList />
+                    </div>
                 </aside>
 
-                {/* Center Stage (Children) */}
-                <section className="flex-1 flex flex-col gap-6">
+                <section className="flex-1 flex flex-col gap-6 overflow-y-auto scrollbar-thin scrollbar-thumb-[#00ff00] scrollbar-track-transparent pr-2">
                     {children}
                 </section>
 
-                {/* Right Panel: Hype Meter & Activity */}
-                <aside className="lg:w-1/4 flex flex-col gap-4">
-                    {/* Hype Meter */}
-                    <div className="bg-[#111] border border-[#333] p-4 rounded-lg">
+                <aside className="lg:w-80 flex flex-col gap-4 overflow-y-auto scrollbar-none shrink-0 h-full">
+                    <div className="bg-[#111]/80 backdrop-blur-sm border border-[#333] p-4 rounded-lg shrink-0">
                         <h2 className="text-[#00ff00] mb-2 flex items-center gap-2 border-b border-[#333] pb-2">
                             <Activity size={16} /> HYPE METER
                         </h2>
                         <div className="h-40 flex items-end justify-between gap-1 p-2 bg-[#050505] rounded border border-[#222]">
-                            {/* Visual simulation of hype history */}
                             {Array.from({ length: 15 }).map((_, i) => (
                                 <motion.div
                                     key={i}
@@ -105,14 +169,14 @@ export const Dashboard = ({ children }: { children: React.ReactNode }) => {
                         </div>
                     </div>
 
-                    {/* Live Activity / Chat */}
-                    <Chat />
+                    <div className="flex-1 min-h-[300px]">
+                        <Chat />
+                    </div>
                 </aside>
 
             </main>
 
-            {/* Footer Ticker */}
-            <footer className="w-full bg-[#00ff00] text-black overflow-hidden py-1 whitespace-nowrap border-t border-[#00ff00]">
+            <footer className="w-full bg-[#00ff00] text-black overflow-hidden py-1 whitespace-nowrap border-t border-[#00ff00] shrink-0 z-20">
                 <motion.div
                     className="inline-block"
                     animate={{ x: ["100%", "-100%"] }}

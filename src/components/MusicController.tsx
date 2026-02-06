@@ -1,26 +1,35 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import dynamic from 'next/dynamic';
 import { Play, Pause, Search, Volume2, SkipBack, SkipForward, Radio } from "lucide-react";
 import { useAudioContext } from "@/context/AudioContext";
+import { usePlayer } from "@/context/PlayerContext";
 
-
-// Dynamic import to prevent SSR issues with Audio/Video players
 const ReactPlayer = dynamic(() => import("react-player"), { ssr: false });
 
 export const MusicController = () => {
     const [inputValue, setInputValue] = useState("");
-    const [currentTrack, setCurrentTrack] = useState<{ url: string; title: string; image?: string } | null>(null);
-    const [playing, setPlaying] = useState(false);
+    const { currentTrack, isPlaying: playing, playTrack, togglePlay, setPlaying } = usePlayer();
+
     const [volume, setVolume] = useState(0.8);
     const [loading, setLoading] = useState(false);
-    const [showVideo, setShowVideo] = useState(true); // Default to visible for reliability
+    const [showVideo, setShowVideo] = useState(true);
 
-    // RP is now the dynamically imported component, cast to any to avoid strict type/ref mismatches
     const RP = ReactPlayer as any;
     const playerRef = useRef<any>(null);
     const { connectSource, resumeContext, setSimulationMode } = useAudioContext();
+
+    useEffect(() => {
+        console.log("[DJ] Track changed:", currentTrack?.url, "playing:", playing);
+        if (currentTrack && playing) {
+            resumeContext();
+        }
+    }, [currentTrack]);
+
+    useEffect(() => {
+        console.log("[DJ] Playing state changed:", playing, "track:", currentTrack?.url);
+    }, [playing]);
 
     // 1. Search Logic
     const handleSearch = async (e: React.FormEvent) => {
@@ -29,7 +38,7 @@ export const MusicController = () => {
         if (!query) return;
 
         setLoading(true);
-        setPlaying(false); // Stop current track
+        // setPlaying(false); // Stop current track - handled by playTrack context update logic if needed, but Context handles state
 
         // Resume Audio Context early
         await resumeContext();
@@ -44,13 +53,11 @@ export const MusicController = () => {
             const data = await res.json();
 
             if (data.url) {
-                setCurrentTrack({
+                playTrack({
                     url: data.url,
                     title: data.title || query,
                     image: data.image
                 });
-                // CRITICAL: Auto-play after load
-                setPlaying(true);
             } else {
                 alert("No track found.");
             }
@@ -58,12 +65,11 @@ export const MusicController = () => {
             console.error(error);
             // Fallback for direct URLs if API fails
             if (query.startsWith("http")) {
-                setCurrentTrack({
+                playTrack({
                     url: query,
                     title: "Unknown Track",
                     image: "/assets/dj pump.jpg"
                 });
-                setPlaying(true);
             } else {
                 alert("Search failed. Please try again.");
             }
@@ -73,28 +79,39 @@ export const MusicController = () => {
     };
 
     // 2. Playback Logic
-    const togglePlay = async () => {
+    const handleTogglePlay = async () => {
         await resumeContext();
-        setPlaying(!playing);
+        togglePlay();
     };
 
     const handlePlayerReady = (player: any) => {
-        const internalPlayer = player.getInternalPlayer();
+        console.log("[DJ] onReady fired. player arg:", player);
+        console.log("[DJ] playerRef.current:", playerRef.current);
 
-        // Attempt to connect audio source for visualizer
-        if (internalPlayer instanceof HTMLMediaElement) {
-            internalPlayer.crossOrigin = "anonymous";
-            connectSource(internalPlayer);
-            setSimulationMode(false);
-        } else {
-            // It's likely an iframe (YouTube), so we must use simulation
+        const actualPlayer = playerRef.current || player;
+        console.log("[DJ] Using player:", actualPlayer);
+
+        try {
+            const internalPlayer = actualPlayer?.getInternalPlayer?.();
+            console.log("[DJ] Internal player:", internalPlayer);
+            console.log("[DJ] Internal player type:", typeof internalPlayer, internalPlayer?.constructor?.name);
+
+            if (internalPlayer instanceof HTMLMediaElement) {
+                internalPlayer.crossOrigin = "anonymous";
+                connectSource(internalPlayer);
+                setSimulationMode(false);
+            } else {
+                console.log("[DJ] Not HTMLMediaElement (likely YouTube iframe), using simulation");
+                setSimulationMode(true);
+            }
+        } catch (e) {
+            console.error("[DJ] Error in onReady handler:", e);
             setSimulationMode(true);
         }
     };
 
     const handlePlayerError = (e: any) => {
-        console.error("Player Error:", e);
-        // Fallback to simulation mode if playback fails slightly but continues
+        console.error("[DJ] Player Error:", e);
         setSimulationMode(true);
     };
 
@@ -135,21 +152,33 @@ export const MusicController = () => {
                                 {/* The Player - VISIBLE now to ensure browser compliance */}
                                 <div className={`relative w-full aspect-video ${showVideo ? 'block' : 'hidden'}`}>
                                     <RP
-                                        key={currentTrack.url} // Forces remount on track change
                                         ref={playerRef}
-                                        url={currentTrack.url}
+                                        src={currentTrack.url}
                                         playing={playing}
                                         volume={volume}
                                         controls={true}
                                         width="100%"
                                         height="100%"
-                                        onReady={() => handlePlayerReady(playerRef.current)}
-                                        onPlay={() => setPlaying(true)}
-                                        onPause={() => setPlaying(false)}
-                                        onError={handlePlayerError}
+                                        onReady={(player: any) => {
+                                            console.log("[DJ] >>> onReady callback triggered");
+                                            handlePlayerReady(player);
+                                        }}
+                                        onStart={() => console.log("[DJ] >>> onStart - playback started")}
+                                        onPlay={() => {
+                                            console.log("[DJ] >>> onPlay");
+                                            setPlaying(true);
+                                        }}
+                                        onPause={() => {
+                                            console.log("[DJ] >>> onPause");
+                                            setPlaying(false);
+                                        }}
+                                        onError={(e: any, data: any) => {
+                                            console.error("[DJ] >>> onError:", e, data);
+                                            handlePlayerError(e);
+                                        }}
                                         config={{
                                             youtube: {
-                                                playerVars: { showinfo: 1, autoplay: 0 }
+                                                playerVars: { autoplay: 1, controls: 0, modestbranding: 1 }
                                             }
                                         } as any}
                                     />
@@ -190,34 +219,41 @@ export const MusicController = () => {
                         </div>
 
                         {/* Main Controls */}
-                        <div className="flex items-center justify-between gap-4">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
                             <div className="flex items-center gap-4">
-                                <button className="p-2 text-gray-500 hover:text-white transition"><SkipBack size={24} /></button>
+                                <button className="p-2 text-gray-500 hover:text-white transition active:scale-95"><SkipBack size={24} /></button>
                                 <button
-                                    onClick={togglePlay}
+                                    onClick={handleTogglePlay}
                                     disabled={!currentTrack}
                                     className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${playing
-                                        ? "bg-[#00ff00] text-black shadow-[0_0_20px_#00ff00]"
-                                        : "bg-[#222] text-[#00ff00] hover:bg-[#333] border-2 border-[#00ff00]"
+                                        ? "bg-[#00ff00] text-black shadow-[0_0_20px_#00ff00] hover:scale-105"
+                                        : "bg-[#222] text-[#00ff00] hover:bg-[#333] border-2 border-[#00ff00] hover:scale-105"
                                         }`}
                                 >
                                     {playing ? <Pause size={32} fill="black" /> : <Play size={32} fill={currentTrack ? "#00ff00" : "none"} />}
                                 </button>
-                                <button className="p-2 text-gray-500 hover:text-white transition"><SkipForward size={24} /></button>
+                                <button className="p-2 text-gray-500 hover:text-white transition active:scale-95"><SkipForward size={24} /></button>
                             </div>
 
                             {/* Volume */}
-                            <div className="flex items-center gap-3 bg-[#111] p-3 rounded-full border border-[#333]">
-                                <Volume2 size={18} className="text-[#00ff00]" />
-                                <input
-                                    type="range"
-                                    min={0}
-                                    max={1}
-                                    step={0.05}
-                                    value={volume}
-                                    onChange={(e) => setVolume(parseFloat(e.target.value))}
-                                    className="w-24 accent-[#00ff00] h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                                />
+                            <div className="flex items-center gap-3 bg-[#111] px-4 py-2 rounded border border-[#333] hover:border-[#00ff00] transition-colors group">
+                                <button 
+                                    onClick={() => setVolume(v => v === 0 ? 0.8 : 0)}
+                                    className="text-[#00ff00] hover:scale-110 transition"
+                                >
+                                    {volume === 0 ? <Volume2 size={18} className="opacity-50" /> : <Volume2 size={18} />}
+                                </button>
+                                <div className="w-32 flex items-center">
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={1}
+                                        step={0.05}
+                                        value={volume}
+                                        onChange={(e) => setVolume(parseFloat(e.target.value))}
+                                        className="cyber-range w-full"
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>

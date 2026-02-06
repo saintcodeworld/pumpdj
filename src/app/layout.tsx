@@ -21,6 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
+        suppressHydrationWarning
         className={`${jetbrainsMono.variable} antialiased bg-black text-[#00ff00] font-mono`}
       >
         <Providers>
