@@ -9,7 +9,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Pump.fun DJ Avatar",
+  title: "PumpFun DJ",
   description: "Degen DJ Audio Visualizer",
 };
 

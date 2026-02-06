@@ -1,6 +1,43 @@
 import { NextResponse } from 'next/server';
 import ytSearch from 'yt-search';
 
+const PIPED_INSTANCES = [
+    'https://pipedapi.kavin.rocks',
+    'https://pipedapi.adminforge.de',
+];
+
+function extractVideoId(query: string): string | null {
+    const match = query.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/user\/\S+|\/ytscreeningroom\?v=))([\w-]{11})/);
+    return match?.[1] || null;
+}
+
+async function searchWithPiped(query: string) {
+    for (const instance of PIPED_INSTANCES) {
+        try {
+            const res = await fetch(`${instance}/search?q=${encodeURIComponent(query)}&filter=videos`, {
+                signal: AbortSignal.timeout(5000),
+            });
+            if (!res.ok) continue;
+
+            const data = await res.json();
+            const items = data.items || data;
+            if (items.length > 0) {
+                const best = items[0];
+                const videoId = best.url?.replace('/watch?v=', '') || best.id;
+                return {
+                    url: `https://www.youtube.com/watch?v=${videoId}`,
+                    title: best.title,
+                    duration: best.duration ? `${Math.floor(best.duration / 60)}:${String(best.duration % 60).padStart(2, '0')}` : undefined,
+                    image: best.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+                };
+            }
+        } catch {
+            continue;
+        }
+    }
+    return null;
+}
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q');
@@ -9,34 +46,39 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Missing query parameter' }, { status: 400 });
     }
 
+    const isUrl = query.includes('youtube.com') || query.includes('youtu.be');
+    const searchTerm = isUrl ? (extractVideoId(query) || query) : query;
+
     try {
-        // Simple check: if it acts like a URL, try to extract the ID or just search the URL
-        let searchTerm = query;
-
-        // If it's a youtube url, try to get just the video ID for better search results
-        if (query.includes('youtube.com') || query.includes('youtu.be')) {
-            const videoIdMatch = query.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/user\/\S+|\/ytscreeningroom\?v=))([\w-]{11})/);
-            if (videoIdMatch && videoIdMatch[1]) {
-                searchTerm = videoIdMatch[1]; // Search by ID
-            }
-        }
-
         const r = await ytSearch(searchTerm);
-        const videos = r.videos;
-
-        if (videos.length > 0) {
-            const bestMatch = videos[0]; // Take the first result
+        if (r.videos.length > 0) {
+            const best = r.videos[0];
             return NextResponse.json({
-                url: bestMatch.url,
-                title: bestMatch.title,
-                duration: bestMatch.timestamp,
-                image: bestMatch.image,
+                url: best.url,
+                title: best.title,
+                duration: best.timestamp,
+                image: best.image,
             });
-        } else {
-            return NextResponse.json({ error: 'No video found' }, { status: 404 });
         }
-    } catch (error) {
-        console.error('YouTube search error:', error);
-        return NextResponse.json({ error: 'Search failed' }, { status: 500 });
+    } catch {
+        console.error('yt-search failed, trying Piped API fallback');
     }
+
+    const pipedResult = await searchWithPiped(searchTerm);
+    if (pipedResult) {
+        return NextResponse.json(pipedResult);
+    }
+
+    if (isUrl) {
+        const videoId = extractVideoId(query);
+        if (videoId) {
+            return NextResponse.json({
+                url: `https://www.youtube.com/watch?v=${videoId}`,
+                title: 'YouTube Video',
+                image: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+            });
+        }
+    }
+
+    return NextResponse.json({ error: 'Search failed' }, { status: 500 });
 }

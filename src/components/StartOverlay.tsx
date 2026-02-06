@@ -2,14 +2,23 @@
 
 import React, { useState } from "react";
 import { useAudioContext } from "@/context/AudioContext";
+import { usePlayer } from "@/context/PlayerContext";
 import { Play } from "lucide-react";
+
+const DEFAULT_TRACK = {
+    url: "https://www.youtube.com/watch?v=RaLbiz73z5Q",
+    title: "PumpFun DJ Radio",
+    image: "https://i.ytimg.com/vi/RaLbiz73z5Q/hqdefault.jpg",
+};
 
 export const StartOverlay = () => {
     const { resumeContext, audioContext } = useAudioContext();
+    const { playTrack } = usePlayer();
     const [started, setStarted] = useState(false);
 
     const handleStart = async () => {
         await resumeContext();
+        playTrack(DEFAULT_TRACK);
         setStarted(true);
     };
 
