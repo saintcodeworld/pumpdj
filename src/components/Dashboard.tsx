@@ -121,7 +121,7 @@ export const Dashboard = ({ children }: { children: React.ReactNode }) => {
                         </div>
 
                         <motion.a
-                            href="https://pump.fun/coin/KEJ9WeF6Gf77LaGLK9zif28YUru8Fu1GyHwSnejpump"
+                            href="https://pump.fun/coin/UPobTBUrQ7gzv6ApMSvNGyzLnWHWeigKnbpuGmwpump"
                             target="_blank"
                             rel="noopener noreferrer"
                             whileHover={{ scale: 1.05 }}
